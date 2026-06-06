@@ -1,6 +1,6 @@
 # TDC Matchmaker Dashboard
 
-An internal CRM tool for matchmakers at **The Date Crew (TDC)**. Built as a mid-size full-stack internship assignment. The tool helps matchmakers view client profiles, run a scoring algorithm to find compatible matches from a pool of 100+ profiles, and send personalised AI-generated match introductions.
+An internal CRM tool for matchmakers at **The Date Crew (TDC)**. Built as a full-stack internship assignment. The tool helps matchmakers view client profiles, run a scoring algorithm to find compatible matches from a pool of 100+ profiles, and send personalised AI-generated match introductions.
 
 ---
 
@@ -15,9 +15,9 @@ An internal CRM tool for matchmakers at **The Date Crew (TDC)**. Built as a mid-
 7. [Data Schema](#7-data-schema)
 8. [Matching Algorithm](#8-matching-algorithm)
 9. [AI Integration](#9-ai-integration)
-10. [Deployment](#10-deployment)
-11. [Sample Login Credentials](#11-sample-login-credentials)
-12. [Known Limitations & Future Improvements](#12-known-limitations--future-improvements)
+10. [API Endpoints](#10-api-endpoints)
+11. [Deployment](#11-deployment)
+12. [Sample Login Credentials](#12-sample-login-credentials)
 13. [Write-up for Submission](#13-write-up-for-submission)
 
 ---
@@ -37,12 +37,12 @@ TDC matchmakers manage a growing list of clients across different stages of thei
 
 A clean internal web dashboard where a matchmaker logs in, sees all their clients, clicks into a profile, runs match scoring, reviews the top 5 ranked matches with AI-generated introductions, and sends a mock match email — all in one flow.
 
-### Inspiration
+### Key Decisions
 
-UI/UX patterns borrowed from:
-- **Shaadi.com** — biodata field structure and grouping
-- **BharatMatrimony** — sidebar + client list layout
-- **Jeevansathi** — minimal, trust-first login screen
+- **MongoDB** for persistent data storage (instead of localStorage)
+- **Express.js backend** with JWT authentication
+- **Claude AI** for personalised match introductions
+- **Custom scoring algorithm** with gender-specific weights based on Indian matrimonial patterns
 
 ---
 
@@ -50,47 +50,60 @@ UI/UX patterns borrowed from:
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | React 18 (Vite) | Fast setup, component-based, easy to explain |
-| Styling | Tailwind CSS | Utility-first, no separate CSS files, readable inline |
-| Routing | React Router v6 | Simple 5-route setup, one file |
-| Data | Static JSON files | No DB needed for MVP, imported directly |
-| State | React useState + localStorage | Auth state in React, notes/status persist via localStorage |
-| AI | Claude API (Anthropic) | One API call returns 5 personalised match intros as JSON |
-| Hosting | Vercel | Free tier, auto-deploys from GitHub |
-
-> **No backend server.** All data is static JSON. The Claude API is called directly from the frontend. This is a documented limitation — see section 12.
+| Frontend | React 18 (Vite) | Fast setup, component-based, hot reload |
+| Styling | Tailwind CSS | Utility-first, no separate CSS files |
+| Routing | React Router v6 | Simple 5-route setup |
+| HTTP Client | Axios | Interceptors for JWT, error handling |
+| Backend | Express.js | Lightweight, fast REST API |
+| Database | MongoDB + Mongoose | Schema-based, flexible documents, free Atlas tier |
+| Auth | JWT + bcrypt | Stateless tokens, secure password hashing |
+| AI | Claude API (Anthropic) | Personalised 2-sentence match intros |
+| Notifications | react-hot-toast | Non-intrusive success/error toasts |
 
 ---
 
 ## 3. Folder Structure
 
 ```
-tdc-matchmaker/
+TDC---Dating-APP/
 ├── public/
-│   └── favicon.ico
 ├── src/
+│   ├── api/
+│   │   ├── axios.js            # Axios instance with JWT interceptor
+│   │   └── claudeIntro.js      # Claude AI integration
+│   ├── components/
+│   │   ├── Sidebar.jsx         # Left nav (name + links + logout)
+│   │   ├── StatusBadge.jsx     # Coloured status chip
+│   │   ├── MatchCard.jsx       # Individual match result card
+│   │   └── Modal.jsx           # Send match email modal
+│   ├── logic/
+│   │   └── matchScore.js       # Scoring algorithm (100 pts)
 │   ├── pages/
-│   │   ├── Login.jsx           # Screen 1: Login form
+│   │   ├── Login.jsx           # Screen 1: Login
 │   │   ├── Dashboard.jsx       # Screen 2: Client list + stats
 │   │   ├── ClientDetail.jsx    # Screen 3: Full biodata + notes
 │   │   └── Matches.jsx         # Screen 4: Match results + AI intros
-│   ├── components/
-│   │   ├── Sidebar.jsx         # Left nav (matchmaker name + links)
-│   │   ├── ClientCard.jsx      # Row/card in the dashboard list
-│   │   ├── MatchCard.jsx       # Individual match result card
-│   │   ├── Modal.jsx           # Send match modal (Screen 5)
-│   │   └── StatusBadge.jsx     # Coloured status chip component
 │   ├── data/
-│   │   ├── clients.json        # 15 client profiles (matchmaker's own clients)
-│   │   └── pool.json           # 100 dummy profiles (matching pool)
-│   ├── logic/
-│   │   └── matchScore.js       # Scoring algorithm — core logic
-│   ├── api/
-│   │   └── claudeIntro.js      # Claude API call for AI match intros
-│   ├── App.jsx                 # Route definitions
-│   └── main.jsx                # Entry point
-├── .env                        # API key (never commit this)
-├── .env.example                # Template for env vars
+│   │   └── clients.json        # Reference data (seeded into MongoDB)
+│   ├── App.jsx                 # Routes + protected route wrapper
+│   ├── main.jsx                # Entry point
+│   └── index.css               # Tailwind directives
+├── server/
+│   ├── config/
+│   │   └── db.js               # MongoDB connection
+│   ├── middleware/
+│   │   └── auth.js             # JWT verification middleware
+│   ├── models/
+│   │   ├── Profile.js          # Mongoose schema (clients + pool)
+│   │   └── User.js             # User schema with bcrypt
+│   ├── routes/
+│   │   ├── auth.js             # POST /api/auth/login
+│   │   └── profiles.js         # GET/PATCH clients, GET pool
+│   ├── seed.js                 # Seeds DB with 15 clients + 100 pool
+│   ├── index.js                # Express server entry
+│   ├── .env.example
+│   └── package.json
+├── .env.example
 ├── .gitignore
 ├── index.html
 ├── tailwind.config.js
@@ -104,76 +117,62 @@ tdc-matchmaker/
 
 ### Prerequisites
 
-Make sure you have the following installed:
+- **Node.js** v18+
+- **MongoDB** (local install or MongoDB Atlas free tier)
+- **Anthropic API key** (for AI intros) — https://console.anthropic.com
 
-- **Node.js** v18 or above — check with `node -v`
-- **npm** v9 or above — check with `npm -v`
-- A free **Anthropic API key** — get one at https://console.anthropic.com
-
-### Step 1 — Clone or create the project
+### Step 1 — Clone the project
 
 ```bash
-# If you're starting fresh with Vite
-npm create vite@latest tdc-matchmaker -- --template react
-cd tdc-matchmaker
+git clone https://github.com/itzrahul02/TDC---Dating-APP.git
+cd TDC---Dating-APP
 ```
 
 ### Step 2 — Install dependencies
 
 ```bash
+# Frontend
 npm install
-npm install react-router-dom
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
+
+# Backend
+cd server
+npm install
 ```
 
-### Step 3 — Configure Tailwind
-
-In `tailwind.config.js`, update the content array:
-
-```js
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-```
-
-In `src/index.css`, replace everything with:
-
-```css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-```
-
-### Step 4 — Add environment variables
-
-Create a `.env` file in the project root:
-
-```
-VITE_ANTHROPIC_API_KEY=your_api_key_here
-```
-
-> **Important:** In Vite, all environment variables exposed to the frontend must start with `VITE_`. Access it in code as `import.meta.env.VITE_ANTHROPIC_API_KEY`.
-
-### Step 5 — Create the folder structure
-
-Manually create the folders as shown in section 3, or run:
+### Step 3 — Configure environment variables
 
 ```bash
-mkdir -p src/pages src/components src/data src/logic src/api
+# Root .env (frontend)
+cp .env.example .env
+# Edit: add your Anthropic API key
+
+# Server .env
+cd server
+cp .env.example .env
+# Edit: add your MongoDB URI
 ```
 
-### Step 6 — Run the development server
+### Step 4 — Seed the database
 
 ```bash
+cd server
+npm run seed
+```
+
+This creates:
+- 1 matchmaker user (`matchmaker` / `tdc2024`)
+- 15 client profiles
+- 100 dummy pool profiles for matching
+
+### Step 5 — Start the servers
+
+```bash
+# Terminal 1 — Backend (port 5000)
+cd server
+npm run dev
+
+# Terminal 2 — Frontend (port 5173)
+cd ..
 npm run dev
 ```
 
@@ -183,24 +182,21 @@ Open `http://localhost:5173` in your browser.
 
 ## 5. Environment Variables
 
+### Frontend (`.env`)
+
 | Variable | Description | Required |
 |---|---|---|
-| `VITE_ANTHROPIC_API_KEY` | Your Anthropic API key for Claude | Yes |
+| `VITE_API_URL` | Backend server URL (default: `http://localhost:5000`) | Yes |
+| `VITE_ANTHROPIC_API_KEY` | Anthropic API key for Claude AI intros | Yes (for AI feature) |
 
-Create a `.env.example` file (safe to commit) with:
+### Backend (`server/.env`)
 
-```
-VITE_ANTHROPIC_API_KEY=your_key_here
-```
-
-Add `.env` to your `.gitignore` so the real key is never pushed to GitHub:
-
-```
-# .gitignore
-.env
-node_modules/
-dist/
-```
+| Variable | Description | Required |
+|---|---|---|
+| `MONGODB_URI` | MongoDB connection string | Yes |
+| `JWT_SECRET` | Secret key for signing JWT tokens | Yes |
+| `PORT` | Server port (default: 5000) | No |
+| `CLIENT_URL` | Frontend URL for CORS (default: `http://localhost:5173`) | No |
 
 ---
 
@@ -209,7 +205,7 @@ dist/
 ```
 [1] Login Page  (/login)
         |
-        | correct credentials
+        | JWT token issued
         ↓
 [2] Dashboard  (/dashboard)
         |
@@ -227,207 +223,239 @@ dist/
         |
         | click "Confirm Send"
         ↓
-    Toast: "Match intro sent!" → client status updates to "Intro Sent"
+    Toast: "Match intro sent!" → client status updates to "Intro Sent" in MongoDB
 ```
 
 ### Screen 1 — Login
-
 - Centered card with TDC branding
-- Username + password inputs
-- On submit: checks hardcoded credentials, sets `isLoggedIn: true` in React state, saves to `localStorage` so refresh doesn't log out
-- Protected routes — if not logged in, all routes redirect to `/login`
+- Username + password → POST `/api/auth/login`
+- JWT token stored in localStorage, attached to all subsequent API requests via Axios interceptor
+- Protected routes redirect to `/login` if no token
 
 ### Screen 2 — Dashboard
-
-- Left sidebar: matchmaker name, navigation links, logout button
-- Top bar: search input (filters by client name or city), status filter dropdown
-- Stats row: 4 metric cards — Total Clients, Searching, Intros Sent, Matched
-- Client table: Name | Age | City | Marital Status | Status badge
-- Clicking any row navigates to `/client/:id`
+- Sidebar: matchmaker name, navigation, logout
+- Stats row: Total Clients, Searching, Intros Sent, Matched (live from MongoDB)
+- Search input (filters by name/city) + status filter dropdown
+- Client table with clickable rows → navigates to `/client/:id`
 
 ### Screen 3 — Client Detail
-
-- Header: avatar (initials circle), full name, age, city, current status
-- Editable status dropdown (Searching / Intro Sent / Matched / On Hold) — change saves to localStorage
-- Biodata grid: 2-column layout, fields grouped into 4 sections:
-  - **Personal** — DOB, gender, height, religion, caste, mother tongue, diet
-  - **Education & Career** — degree, college, company, designation, income
-  - **Preferences** — wants kids, open to relocate, open to pets, family type
-  - **Family** — siblings, languages known
-- Notes textarea — matchmaker types freetext notes, auto-saved to localStorage on change
-- "Find Matches →" button at bottom right
+- Avatar (initials), full name, age, city, status dropdown
+- Biodata grid: Personal, Education & Career, Preferences, Family sections
+- Notes textarea — saves to MongoDB on blur
+- "Find Matches →" button
 
 ### Screen 4 — Match Results
-
-- Back button + heading "Matches for [Client Name]"
-- Loading skeleton while Claude API call is in progress
-- Top 5 match cards (see MatchCard component)
-- Each card shows:
-  - Score badge: 🔥 High Potential (85–100) · ✅ Good Match (65–84) · 🤝 Possible (45–64)
-  - Name, Age, City, Designation
-  - 3 matching reason pills (e.g. "Same religion", "Open to relocate", "Compatible on kids")
-  - AI-generated 2-line intro in italic
-  - "Send Match" button
+- Runs matching algorithm (client vs. 100 pool profiles)
+- Shows top 5 matches with score badges, reason pills, AI intros
+- "Send Match" button opens email modal
 
 ### Screen 5 — Send Match Modal
-
-- Triggered by "Send Match" button on any match card
-- Shows a mock email preview:
-  - **To:** client's email address
-  - **Subject:** "We found a great match for you — [Match Name]"
-  - **Body:** Match's key details + AI intro paragraph
-- Editable textarea so matchmaker can tweak before sending
-- "Confirm Send" → closes modal → shows success toast → updates client status to "Intro Sent"
+- Mock email preview (To, Subject, Body)
+- Editable textarea for matchmaker to customize
+- "Confirm Send" → updates client status to "Intro Sent" in MongoDB
 
 ---
 
 ## 7. Data Schema
 
-Both `clients.json` and `pool.json` use the same profile object shape. The only difference is that client profiles also have `status` and `notes` fields.
+### Profile Model (MongoDB)
 
-```json
+Both clients and pool profiles share one schema. The `isClient` boolean distinguishes them.
+
+```javascript
 {
-  "id": "c001",
-  "gender": "male",
-  "firstName": "Arjun",
-  "lastName": "Mehta",
-  "dob": "1995-03-14",
-  "age": 29,
-  "city": "Mumbai",
-  "country": "India",
-  "height": 175,
-  "email": "arjun.mehta@example.com",
-  "phone": "+91 98765 43210",
-  "religion": "Hindu",
-  "caste": "Brahmin",
-  "maritalStatus": "Never Married",
-  "motherTongue": "Hindi",
-  "languages": ["Hindi", "English", "Marathi"],
-  "diet": "Vegetarian",
-  "income": 22,
-  "company": "Infosys",
-  "designation": "Senior Software Engineer",
-  "education": "B.Tech Computer Science",
-  "college": "IIT Bombay",
-  "siblings": 1,
-  "familyType": "Nuclear",
-  "wantKids": "Yes",
-  "openToRelocate": "Maybe",
-  "openToPets": "Yes",
-
-  "status": "Searching",
-  "notes": ""
+  profileId: String,        // "c001" for clients, "p001" for pool
+  gender: "male" | "female",
+  firstName: String,
+  lastName: String,
+  dob: String,
+  age: Number,
+  city: String,
+  country: String,
+  height: Number,           // cm
+  email: String,
+  phone: String,
+  religion: String,         // Hindu, Muslim, Sikh, Christian, Jain, Buddhist
+  caste: String,
+  maritalStatus: String,    // Never Married, Divorced, Widowed
+  motherTongue: String,
+  languages: [String],
+  diet: String,             // Vegetarian, Non-Vegetarian, Eggetarian
+  income: Number,           // LPA (lakhs per annum)
+  company: String,
+  designation: String,
+  education: String,
+  college: String,
+  siblings: Number,
+  familyType: String,       // Nuclear, Joint, Open
+  wantKids: String,         // Yes, No, Maybe
+  openToRelocate: String,   // Yes, No, Maybe
+  openToPets: String,       // Yes, No, Maybe
+  isClient: Boolean,        // true = matchmaker's client, false = pool
+  status: String,           // Searching, Intro Sent, Matched, On Hold
+  notes: String             // Matchmaker's freetext notes
 }
 ```
 
-### Field reference
+### User Model (MongoDB)
 
-| Field | Type | Values / Notes |
-|---|---|---|
-| `id` | string | Unique. Use `"c001"` for clients, `"p001"` for pool |
-| `gender` | string | `"male"` or `"female"` |
-| `age` | number | Used directly in scoring |
-| `height` | number | In centimetres |
-| `income` | number | Annual in LPA (lakhs per annum) |
-| `religion` | string | Hindu / Muslim / Christian / Sikh / Jain / Buddhist |
-| `caste` | string | Brahmin / Kshatriya / Kayastha / Agarwal / etc. |
-| `maritalStatus` | string | Never Married / Divorced / Widowed |
-| `familyType` | string | Joint / Nuclear / Open |
-| `wantKids` | string | Yes / No / Maybe |
-| `openToRelocate` | string | Yes / No / Maybe |
-| `openToPets` | string | Yes / No / Maybe |
-| `diet` | string | Vegetarian / Non-Vegetarian / Eggetarian |
-| `status` | string | Client only — Searching / Intro Sent / Matched / On Hold |
-| `notes` | string | Client only — matchmaker's freetext notes |
+```javascript
+{
+  username: String,         // unique
+  password: String,         // bcrypt hashed (10 rounds)
+  name: String              // Display name
+}
+```
 
 ---
 
 ## 8. Matching Algorithm
 
-The core logic lives in `src/logic/matchScore.js`. It exports one function:
+**File:** `src/logic/matchScore.js`
 
-```js
+### How it works
+
+```javascript
 getTopMatches(clientProfile, pool, limit = 5)
 ```
 
-This function:
-1. Filters the pool to the opposite gender
-2. Scores each pool profile against the client out of 100
-3. Sorts by score descending
-4. Returns the top `limit` matches with score, label, and matching reasons
+1. **Filter** — Only opposite-gender profiles are considered
+2. **Score** — Each candidate is scored out of 100 using weighted criteria
+3. **Sort** — Descending by score
+4. **Filter** — Only matches scoring 45+ are returned
+5. **Limit** — Top 5 (configurable) are shown to the matchmaker
 
-### Scoring weights
+### Why gender-specific weights?
 
-#### For male clients (matching with female profiles)
+Based on actual patterns in Indian matrimonial data:
+- **Male clients** prioritize religion/caste compatibility, age gap, and mutual kid preferences
+- **Female clients** prioritize financial stability, career support (relocation flexibility), and family type compatibility
 
-| Criterion | Max Points | Logic |
-|---|---|---|
-| Religion match | 15 | Same = 15, different religion = 0 |
-| Caste match | 10 | Same = 10, same religion diff caste = 5, open = 10 |
-| Age gap | 15 | Woman 1–5 yrs younger = 15, 6–10 = 8, same age = 5, older = 0 |
-| Income (woman ≤ man) | 15 | Woman earns less = 15, same = 10, earns more = 5 |
-| Kids preference | 15 | Both same = 15, one "Maybe" + other "Yes/No" = 8, opposite = 0 |
-| City / relocation | 10 | Same city = 10, woman open to relocate = 7, man open = 5, neither = 0 |
-| Education tier | 10 | Same tier or woman 1 below = 10, 2 below = 5 |
-| Family type | 10 | Same = 10, one "Open" = 7, opposite = 0 |
+### Scoring Weights — Male Clients (matching with females)
 
-#### For female clients (matching with male profiles)
+| # | Criterion | Max Points | Logic |
+|---|---|---|---|
+| 1 | Religion match | 15 | Same = 15, different = 0 |
+| 2 | Caste match | 10 | Same = 10, same religion but diff caste = 5 |
+| 3 | Age gap | 15 | Woman 1–5 yrs younger = 15, 6–10 = 8, same = 5, older = 0 |
+| 4 | Income relative | 15 | Woman earns less = 15, same = 10, more = 5 |
+| 5 | Kids preference | 15 | Both same = 15, one "Maybe" = 8, opposite = 0 |
+| 6 | City / relocation | 10 | Same city = 10, she relocates = 7, he relocates = 5 |
+| 7 | Education tier | 10 | Same/higher tier = 10, 1 below = 5 |
+| 8 | Family type | 10 | Same = 10, one "Open" = 7, opposite = 0 |
+| | **Total** | **100** | |
 
-| Criterion | Max Points | Logic |
-|---|---|---|
-| Income (man ≥ woman) | 25 | Man earns same or more = 25, less = 10 |
-| Religion match | 15 | Same religion = 15 |
-| Caste match | 10 | Same = 10, same religion diff caste = 5 |
-| Relocation / career support | 15 | Man open to relocate = 15, Maybe = 8, No = 0 |
-| Family type | 15 | Woman prefers nuclear + man nuclear/open = 15, joint = 0 |
-| Kids preference | 10 | Both aligned = 10, one Maybe = 5 |
-| Education tier | 10 | Same tier or man 1 above = 10 |
+### Scoring Weights — Female Clients (matching with males)
 
-### Score labels
+| # | Criterion | Max Points | Logic |
+|---|---|---|---|
+| 1 | Income (man ≥ woman) | 25 | Man earns same/more = 25, less = 10 |
+| 2 | Religion match | 15 | Same = 15 |
+| 3 | Caste match | 10 | Same = 10, same religion diff caste = 5 |
+| 4 | Relocation support | 15 | Man open = 15, Maybe = 8, No = 0 |
+| 5 | Family type | 15 | Compatible nuclear = 15, same = 15, open = 7 |
+| 6 | Kids preference | 10 | Both aligned = 10, one Maybe = 5 |
+| 7 | Education tier | 10 | Same/higher = 10, 1 below = 5 |
+| | **Total** | **100** | |
 
-| Score | Label | Badge |
+### Education Tier Classification
+
+```javascript
+Tier 3 (highest): IIT, IIM, AIIMS, M.Tech, MBA
+Tier 2 (mid):     B.Tech, B.E., CA, M.Sc
+Tier 1 (base):    Everything else (BBA, B.Com, Diploma, etc.)
+```
+
+### Score Labels
+
+| Score Range | Label | Badge |
 |---|---|---|
 | 85 – 100 | High Potential Match | 🔥 |
 | 65 – 84 | Good Match | ✅ |
 | 45 – 64 | Possible Match | 🤝 |
 | Below 45 | Not shown | — |
 
-### Matching reasons (auto-generated)
+### Auto-Generated Reasons
 
-The function also builds an array of human-readable reason strings for each match, e.g.:
+The algorithm also builds an array of human-readable reason strings:
 
-```js
+```javascript
 reasons: ["Same religion", "Compatible on kids", "Open to relocate"]
 ```
 
-These are shown as pills on the match card — no AI needed for this part.
+These are displayed as pills on each match card — purely algorithmic, no AI needed.
+
+### Code Walkthrough
+
+```javascript
+// Education tier helper
+function getEducationTier(education) {
+  const upper = (education || '').toUpperCase();
+  if (upper.includes('IIT') || upper.includes('IIM') || upper.includes('MBA')) return 3;
+  if (upper.includes('B.TECH') || upper.includes('B.E.') || upper.includes('CA')) return 2;
+  return 1;
+}
+
+// Main function
+export function getTopMatches(client, pool, limit = 5) {
+  const candidates = pool.filter(p => p.gender !== client.gender);
+  
+  const scored = candidates.map(match => {
+    const { score, reasons } = client.gender === 'male'
+      ? scoreMaleClient(client, match)
+      : scoreFemaleClient(client, match);
+    
+    // Assign label based on score
+    let label = '', badge = '';
+    if (score >= 85) { label = 'High Potential Match'; badge = '🔥'; }
+    else if (score >= 65) { label = 'Good Match'; badge = '✅'; }
+    else if (score >= 45) { label = 'Possible Match'; badge = '🤝'; }
+    
+    return { ...match, score, reasons, label, badge };
+  });
+
+  return scored
+    .filter(m => m.score >= 45)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+```
 
 ---
 
 ## 9. AI Integration
 
-The AI feature lives in `src/api/claudeIntro.js`.
+**File:** `src/api/claudeIntro.js`
 
-### What it does
+### Purpose
 
-After the scoring algorithm returns the top 5 matches, a single API call is made to Claude. It sends both the client profile and all 5 match profiles, and asks Claude to return a JSON array of 5 personalised intro strings — one per match.
+After the scoring algorithm returns the top 5 matches, a single API call is made to Claude to generate **personalised 2-sentence introductions** for each match. This adds a human, story-driven layer that the algorithm alone cannot provide.
 
-### The prompt
+### The Prompt Engineering
 
 ```
 You are a professional matrimonial matchmaker writing personalised introductions.
 
-Given the client profile and 5 potential matches below, write a 2-sentence introduction for each match explaining why they are a good fit. Focus on shared values, compatibility, and genuine connection — not just demographics.
+Given the client profile and 5 potential matches below, write a 2-sentence
+introduction for each match explaining why they are a good fit. Focus on
+shared values, compatibility, and genuine connection — not just demographics.
 
 Return ONLY a valid JSON array of 5 strings. No extra text, no markdown.
 
-Client: [client profile as JSON]
-Matches: [array of 5 match profiles as JSON]
+Client: {client profile JSON}
+Matches: {array of 5 match profiles JSON}
 ```
 
-### The API call
+**Why this prompt works:**
+- **Role framing** — "professional matrimonial matchmaker" sets tone and expertise
+- **Constraint** — "2-sentence" prevents verbosity
+- **Focus directive** — "shared values, genuine connection" avoids repeating what the algorithm already shows (demographics)
+- **Output format** — "ONLY a valid JSON array" ensures parseable response
+- **No markdown** — prevents code fences that break JSON.parse()
 
-```js
+### The API Call
+
+```javascript
 const response = await fetch("https://api.anthropic.com/v1/messages", {
   method: "POST",
   headers: {
@@ -444,90 +472,188 @@ const response = await fetch("https://api.anthropic.com/v1/messages", {
 });
 ```
 
-> **Note:** The `anthropic-dangerous-direct-browser-access: true` header is required when calling the Anthropic API directly from a browser. In production, this call should go through a backend server or serverless function.
+**Headers explained:**
+- `x-api-key` — Anthropic auth (from env var)
+- `anthropic-version` — API version pinning for stability
+- `anthropic-dangerous-direct-browser-access` — Required for browser-to-API calls (production should route through backend)
 
-### Parsing the response
+### Response Parsing
 
-```js
+```javascript
 const data = await response.json();
-const text = data.content[0].text;
-const intros = JSON.parse(text); // array of 5 strings
+const text = data.content[0].text;     // Claude's raw text response
+const intros = JSON.parse(text);        // Parse into array of 5 strings
 ```
 
-### Loading state
+### Error Handling Strategy
 
-While the API call is in progress, each match card shows a skeleton placeholder where the intro text will appear. Once resolved, the intros are rendered in italic below the match details.
+```javascript
+try {
+  // ... API call and parse
+  return intros;  // Array of 5 strings
+} catch (error) {
+  console.error('AI intro generation failed:', error);
+  return matches.map(() => 
+    "Introduction not available — AI service temporarily unavailable."
+  );
+}
+```
+
+**Why this approach:**
+- Never blocks the UI — matches are shown immediately (from algorithm)
+- Graceful degradation — if AI fails, user still sees scores/reasons
+- Single fallback message — no confusing partial results
+
+### UX During Loading
+
+1. Match cards render **immediately** with scores and reason pills (from algorithm)
+2. AI intro area shows a **skeleton pulse animation** (`animate-pulse`)
+3. Once Claude responds (~2-3 seconds), intros **fade in** below each card in italic
+
+### Flow Diagram
+
+```
+┌─────────────────────────────────────────────────┐
+│ Client clicks "Find Matches"                      │
+└─────────────────┬───────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────┐
+│ Frontend fetches client + pool from MongoDB       │
+│ GET /api/clients/:id + GET /api/pool              │
+└─────────────────┬───────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────┐
+│ matchScore.js runs locally in browser             │
+│ Scores 100 profiles → returns top 5              │
+│ Renders cards with scores + reasons immediately   │
+└─────────────────┬───────────────────────────────┘
+                  │
+                  ▼ (async, non-blocking)
+┌─────────────────────────────────────────────────┐
+│ claudeIntro.js sends 1 API call to Claude         │
+│ Prompt: client + 5 matches → 5 intros            │
+│ Skeleton animation shown during wait              │
+└─────────────────┬───────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────┐
+│ JSON.parse response → render intros in italic     │
+│ If error → show fallback text                     │
+└─────────────────────────────────────────────────┘
+```
 
 ---
 
-## 10. Deployment
+## 10. API Endpoints
 
-### Deploy to Vercel
+### Authentication
 
-1. Push your project to a GitHub repository
-2. Go to https://vercel.com and sign in with GitHub
-3. Click "Add New Project" → select your repo
-4. In the Environment Variables section, add:
-   - Key: `VITE_ANTHROPIC_API_KEY`
-   - Value: your actual API key
-5. Click Deploy
+| Method | Endpoint | Body | Response |
+|---|---|---|---|
+| POST | `/api/auth/login` | `{ username, password }` | `{ token, user: { username, name } }` |
 
-Vercel auto-detects Vite and sets the build command to `vite build` and output directory to `dist`.
+### Profiles (all require `Authorization: Bearer <token>`)
 
-Every time you push to `main`, Vercel re-deploys automatically.
+| Method | Endpoint | Query Params | Response |
+|---|---|---|---|
+| GET | `/api/clients` | `?search=&status=` | Array of client profiles |
+| GET | `/api/clients/stats` | — | `{ total, searching, introSent, matched }` |
+| GET | `/api/clients/:id` | — | Single client profile |
+| PATCH | `/api/clients/:id` | Body: `{ status?, notes? }` | Updated client profile |
+| GET | `/api/pool` | — | Array of 100 pool profiles |
 
-### Build locally
+### Security Measures
+
+- Passwords hashed with **bcrypt** (10 salt rounds)
+- JWT tokens **expire in 24 hours**
+- All profile routes **protected by auth middleware**
+- 401 response triggers **automatic logout + redirect** via Axios interceptor
+- CORS restricted to **CLIENT_URL only**
+- Input validated on backend — no raw user input in DB queries
+
+---
+
+## 11. Deployment
+
+### Option A — Vercel (Frontend) + Railway/Render (Backend)
+
+**Frontend (Vercel):**
+1. Push to GitHub
+2. Import in Vercel → set env vars (`VITE_API_URL`, `VITE_ANTHROPIC_API_KEY`)
+3. Deploy
+
+**Backend (Railway/Render):**
+1. Create new service from `server/` directory
+2. Set env vars (`MONGODB_URI`, `JWT_SECRET`, `CLIENT_URL`)
+3. Start command: `node index.js`
+
+### Option B — Local Development
 
 ```bash
-npm run build       # Creates /dist folder
-npm run preview     # Preview the production build locally
+# Terminal 1 — Backend
+cd server && npm run dev
+
+# Terminal 2 — Frontend
+npm run dev
 ```
+
+### MongoDB Atlas Setup (Free Tier)
+
+1. Go to https://cloud.mongodb.com
+2. Create free M0 cluster
+3. Create database user with read/write permissions
+4. Whitelist your IP (or `0.0.0.0/0` for dev)
+5. Get connection string → paste in `server/.env` as `MONGODB_URI`
 
 ---
 
-## 11. Sample Login Credentials
+## 12. Sample Login Credentials
 
 ```
 Username: matchmaker
 Password: tdc2024
 ```
 
-These are hardcoded in the Login component for demo purposes. In a real application, this would be replaced with proper authentication (JWT, OAuth, etc.).
-
----
-
-## 12. Known Limitations & Future Improvements
-
-| Limitation | Why it exists | Production fix |
-|---|---|---|
-| API key exposed on frontend | No backend in MVP | Move Claude call to a serverless function (Vercel Function or Express route) |
-| Data is static JSON | No DB in MVP | Replace with Supabase / Firebase / PostgreSQL |
-| Auth is hardcoded | No backend | Add proper JWT auth or NextAuth.js |
-| No real email sending | Mock only | Integrate SendGrid or Nodemailer |
-| localStorage for state | No DB | Sync to backend DB on every change |
-| 100 dummy profiles | Generated data | Real profiles from admin panel |
+Created by the seed script (`npm run seed`). In production, replace with proper user management.
 
 ---
 
 ## 13. Write-up for Submission
 
-> Copy-paste this into your submission email.
+### Tech Choices
 
-### Tech choices
+I built the TDC Matchmaker Dashboard as a **React + Vite + Tailwind** frontend with an **Express + MongoDB** backend. The key architectural decision was using MongoDB instead of localStorage — this gives persistent, queryable data storage that survives across devices and sessions. Authentication uses JWT tokens with bcrypt-hashed passwords. The frontend communicates with the backend through an Axios instance with automatic token attachment and 401 handling.
 
-I built the TDC Matchmaker Dashboard as a React + Vite single-page application styled with Tailwind CSS. I chose this stack because it is fast to set up, easy to reason about, and simple to explain — which matters for an MVP where the matching logic and AI integration are the core deliverables. Routing is handled by React Router v6. All data lives in static JSON files, and client state (notes, status changes) is persisted via localStorage. The application is deployed on Vercel with zero configuration.
+### Matching Logic
 
-### Matching logic
+The core of the project is a **weighted scoring function** in `src/logic/matchScore.js`. It takes a client profile and scores every opposite-gender profile in the pool out of 100. The weights are **gender-specific**, reflecting actual preferences observed in Indian matrimonial data:
 
-The core of the project is a scoring function in `src/logic/matchScore.js` that takes a client profile and scores every profile in the opposite-gender pool out of 100. The weights are different for male and female clients, reflecting actual preferences observed in Indian matrimonial data. For male clients, the top weights are religion/caste compatibility, age gap, and income relative to the match. For female clients, the top weights are the man's financial stability, his openness to relocation (supporting her career), and family type preference. The top 5 scores above 45 are returned with a label (High Potential / Good Match / Possible) and an auto-generated list of matching reasons shown as pills on the card.
+- **Male clients**: top weights are religion/caste (25 pts combined), kids preference (15 pts), and age gap (15 pts)
+- **Female clients**: top weight is financial stability (25 pts), followed by relocation flexibility (15 pts) and family type (15 pts)
 
-### How AI is used
+The algorithm returns the top 5 matches scoring above 45, each with a label (🔥 High Potential / ✅ Good Match / 🤝 Possible) and auto-generated reason pills.
 
-Once the top 5 matches are calculated algorithmically, a single API call is made to Claude (Anthropic's model). I send both the client profile and all 5 match profiles in a structured prompt and ask Claude to return a JSON array of 5 personalised 2-sentence introductions explaining why each match is a good fit. These intros appear on each match card in italic and can be copied directly into the match email. The AI adds a layer of personalisation that the scoring algorithm alone cannot provide — it connects the human story behind the numbers.
+### How AI is Used
 
-### Assumptions made
+Once the top 5 matches are calculated algorithmically, a **single API call** is made to Claude. Both the client profile and all 5 match profiles are sent in a structured prompt asking for personalised 2-sentence introductions. The AI adds a layer of human storytelling — connecting shared values and genuine compatibility — that pure demographic scoring cannot provide. These intros appear in italic on each match card and are pre-populated in the "Send Match" email template.
 
-- The matchmaker manages a fixed set of clients; new client onboarding is out of scope for this MVP.
-- The matching pool is a static set of 100 dummy profiles generated to represent realistic Indian profiles across cities, professions, religions, and income ranges.
-- Match emails are mocked — the "Confirm Send" action updates the client status in UI but does not send a real email.
-- The API key is stored in an environment variable on the frontend for demo purposes. In production, this would be moved to a serverless backend function.
+### Database Design
+
+A single `Profile` schema handles both clients (`isClient: true`) and pool profiles (`isClient: false`). This makes the matching query simple — filter by `isClient: false` and opposite gender. Client-specific fields (`status`, `notes`) are updated via PATCH endpoint and persisted in MongoDB, not browser storage.
+
+### Security
+
+- Passwords are **never stored in plaintext** — bcrypt with 10 salt rounds
+- JWT tokens **expire in 24 hours**
+- API routes are **protected by auth middleware** — no token = 401
+- CORS is **restricted to the frontend origin**
+- Axios interceptor **auto-redirects on 401** (expired/invalid token)
+
+### Assumptions
+
+- The matchmaker manages a fixed set of 15 clients; onboarding is out of scope for MVP
+- The matching pool is 100 randomly generated (but realistic) Indian profiles
+- Match emails are mocked — "Confirm Send" updates status but doesn't send real email
+- The Claude API key is on the frontend for demo — in production, route through backend
