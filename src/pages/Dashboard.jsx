@@ -1,30 +1,36 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import axios from 'axios';
 import Sidebar from '../components/Sidebar';
 import StatusBadge from '../components/StatusBadge';
 
 export default function Dashboard() {
   const [clients, setClients] = useState([]);
   const [stats, setStats] = useState({ total: 0, searching: 0, introSent: 0, matched: 0 });
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [search, setSearch] = useState(''); 
+  const [statusFilter, setStatusFilter] = useState('All'); 
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
   }, [search, statusFilter]);
-
+  
   const fetchData = async () => {
-    try {
+    try { 
       const params = {};
       if (search) params.search = search;
       if (statusFilter !== 'All') params.status = statusFilter;
-
+      
       const [clientsRes, statsRes] = await Promise.all([
-        api.get('/api/clients', { params }),
-        api.get('/api/clients/stats')
+        axios.get(
+          'http://localhost:8000/api/clients', 
+          { params, withCredentials: true }
+        ),
+        axios.get(
+          'http://localhost:8000/api/clients/stats',
+          { withCredentials: true }
+        ),
       ]);
       setClients(clientsRes.data);
       setStats(statsRes.data);
@@ -34,7 +40,7 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
-
+  
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />

@@ -28,7 +28,7 @@ export default function ClientDetail() {
       setLoading(false);
     }
   };
-
+  
   const handleStatusChange = async (newStatus) => {
     try {
       const { data } = await api.patch(`/api/clients/${id}`, { status: newStatus });

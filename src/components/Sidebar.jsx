@@ -1,13 +1,16 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import api from '../api/axios';
 
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     navigate('/login');
   };
 
@@ -17,7 +20,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-white border-r border-gray-200 fixed h-full flex flex-col">
       <div className="p-6 border-b">
         <h2 className="text-xl font-bold text-rose-600">💕 TDC</h2>
-        <p className="text-sm text-gray-500 mt-1">{user.name || 'Matchmaker'}</p>
+        <p className="text-sm text-gray-500 mt-1">Matchmaker</p>
       </div>
 
       <nav className="flex-1 p-4 space-y-2">

@@ -24,10 +24,17 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId: user._id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
     );
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 3600 * 1000
+    })
 
-    res.json({ token, user: { username: user.username, name: user.name } });
+    res.json({
+      user: { username: user.username, name: user.name } 
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }

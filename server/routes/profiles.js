@@ -49,7 +49,7 @@ router.get('/clients/:id', auth, async (req, res) => {
     const client = await Profile.findOne({ profileId: req.params.id, isClient: true });
     if (!client) return res.status(404).json({ message: 'Client not found' });
     res.json(client);
-  } catch (error) {
+  } catch (error) { 
     res.status(500).json({ message: 'Server error' });
   }
 });
