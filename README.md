@@ -41,7 +41,7 @@ A clean internal web dashboard where a matchmaker logs in, sees all their client
 
 - **MongoDB** for persistent data storage (instead of localStorage)
 - **Express.js backend** with JWT authentication
-- **Claude AI** for personalised match introductions
+- **Backend AI provider integration** (Groq or Anthropic) for personalised match introductions
 - **Custom scoring algorithm** with gender-specific weights based on Indian matrimonial patterns
 
 ---
@@ -57,7 +57,7 @@ A clean internal web dashboard where a matchmaker logs in, sees all their client
 | Backend | Express.js | Lightweight, fast REST API |
 | Database | MongoDB + Mongoose | Schema-based, flexible documents, free Atlas tier |
 | Auth | JWT + bcrypt | Stateless tokens, secure password hashing |
-| AI | Claude API (Anthropic) | Personalised 2-sentence match intros |
+| AI | Groq or Anthropic (via backend route) | Personalised 2-sentence match intros |
 | Notifications | react-hot-toast | Non-intrusive success/error toasts |
 
 ---
@@ -119,7 +119,7 @@ TDC---Dating-APP/
 
 - **Node.js** v18+
 - **MongoDB** (local install or MongoDB Atlas free tier)
-- **Anthropic API key** (for AI intros) — https://console.anthropic.com
+- **AI provider API key** (Groq or Anthropic) for intros
 
 ### Step 1 — Clone the project
 
@@ -144,12 +144,12 @@ npm install
 ```bash
 # Root .env (frontend)
 cp .env.example .env
-# Edit: add your Anthropic API key
+# Edit: add your backend API URL
 
 # Server .env
 cd server
 cp .env.example .env
-# Edit: add your MongoDB URI
+# Edit: add MongoDB URI + AI provider credentials
 ```
 
 ### Step 4 — Seed the database
@@ -186,8 +186,7 @@ Open `http://localhost:5173` in your browser.
 
 | Variable | Description | Required |
 |---|---|---|
-| `VITE_API_URL` | Backend server URL (default: `http://localhost:5000`) | Yes |
-| `VITE_ANTHROPIC_API_KEY` | Anthropic API key for Claude AI intros | Yes (for AI feature) |
+| `VITE_API_URL` | Backend server URL (default: `http://localhost:8000`) | Yes |
 
 ### Backend (`server/.env`)
 
@@ -195,8 +194,13 @@ Open `http://localhost:5173` in your browser.
 |---|---|---|
 | `MONGODB_URI` | MongoDB connection string | Yes |
 | `JWT_SECRET` | Secret key for signing JWT tokens | Yes |
-| `PORT` | Server port (default: 5000) | No |
-| `CLIENT_URL` | Frontend URL for CORS (default: `http://localhost:5173`) | No |
+| `PORT` | Server port (default: 8000) | No |
+| `CLIENT_URLS` | Comma-separated frontend origins for CORS | Yes |
+| `AI_PROVIDER` | `groq` or `anthropic` | Yes (if AI enabled) |
+| `GROQ_API_KEY` | Groq API key (required when `AI_PROVIDER=groq`) | Conditional |
+| `GROQ_MODEL` | Groq model name (for example `llama-3.1-8b-instant`) | No |
+| `ANTHROPIC_API_KEY` | Anthropic API key (required when `AI_PROVIDER=anthropic`) | Conditional |
+| `ANTHROPIC_MODEL` | Anthropic model name (for example `claude-3-5-sonnet-latest`) | No |
 
 ---
 
@@ -427,9 +431,11 @@ export function getTopMatches(client, pool, limit = 5) {
 
 **File:** `src/api/claudeIntro.js`
 
+**Backend route:** `server/routes/ai.js` (`POST /api/ai/intros`)
+
 ### Purpose
 
-After the scoring algorithm returns the top 5 matches, a single API call is made to Claude to generate **personalised 2-sentence introductions** for each match. This adds a human, story-driven layer that the algorithm alone cannot provide.
+After the scoring algorithm returns the top 5 matches, the frontend calls the backend AI route to generate **personalised 2-sentence introductions** for each match. The backend then calls the configured provider (Groq or Anthropic). This keeps provider API keys off the client.
 
 ### The Prompt Engineering
 
@@ -453,44 +459,45 @@ Matches: {array of 5 match profiles JSON}
 - **Output format** — "ONLY a valid JSON array" ensures parseable response
 - **No markdown** — prevents code fences that break JSON.parse()
 
-### The API Call
+### Frontend API Call
 
 ```javascript
-const response = await fetch("https://api.anthropic.com/v1/messages", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
-    "anthropic-version": "2023-06-01",
-    "anthropic-dangerous-direct-browser-access": "true"
-  },
-  body: JSON.stringify({
-    model: "claude-sonnet-4-6",
-    max_tokens: 1000,
-    messages: [{ role: "user", content: prompt }]
-  })
-});
+const response = await api.post('/api/ai/intros', { client, matches });
+const intros = response.data.intros;
 ```
 
-**Headers explained:**
-- `x-api-key` — Anthropic auth (from env var)
-- `anthropic-version` — API version pinning for stability
-- `anthropic-dangerous-direct-browser-access` — Required for browser-to-API calls (production should route through backend)
+### Backend Provider Call
 
-### Response Parsing
+The backend uses `AI_PROVIDER` to select a provider:
+- `groq` -> calls Groq Chat Completions API
+- `anthropic` -> calls Anthropic Messages API
 
-```javascript
-const data = await response.json();
-const text = data.content[0].text;     // Claude's raw text response
-const intros = JSON.parse(text);        // Parse into array of 5 strings
+Provider errors are returned as:
+
+```json
+{
+  "message": "AI provider request failed",
+  "details": "...provider specific error..."
+}
+```
+
+### Response Format
+
+```json
+{
+  "intros": [
+    "Intro 1",
+    "Intro 2"
+  ]
+}
 ```
 
 ### Error Handling Strategy
 
 ```javascript
 try {
-  // ... API call and parse
-  return intros;  // Array of 5 strings
+  const response = await api.post('/api/ai/intros', { client, matches });
+  return response.data.intros;
 } catch (error) {
   console.error('AI intro generation failed:', error);
   return matches.map(() => 
@@ -532,8 +539,8 @@ try {
                   │
                   ▼ (async, non-blocking)
 ┌─────────────────────────────────────────────────┐
-│ claudeIntro.js sends 1 API call to Claude         │
-│ Prompt: client + 5 matches → 5 intros            │
+│ claudeIntro.js sends 1 call to /api/ai/intros     │
+│ Backend calls Groq/Anthropic with server key      │
 │ Skeleton animation shown during wait              │
 └─────────────────┬───────────────────────────────┘
                   │
@@ -552,9 +559,9 @@ try {
 
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
-| POST | `/api/auth/login` | `{ username, password }` | `{ token, user: { username, name } }` |
+| POST | `/api/auth/login` | `{ username, password }` | `{ user: { username, name } }` + httpOnly `token` cookie |
 
-### Profiles (all require `Authorization: Bearer <token>`)
+### Profiles (all require auth cookie)
 
 | Method | Endpoint | Query Params | Response |
 |---|---|---|---|
