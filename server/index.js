@@ -44,6 +44,14 @@ app.use(async (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', profileRoutes);
 
+app.get('/', (req, res) => {
+  res.json({
+    name: 'TDC Matchmaker API',
+    status: 'ok',
+    health: '/health'
+  });
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 if (!process.env.VERCEL) {
