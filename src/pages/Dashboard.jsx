@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axios';
 import Sidebar from '../components/Sidebar';
 import StatusBadge from '../components/StatusBadge';
 
@@ -23,12 +23,12 @@ export default function Dashboard() {
       if (statusFilter !== 'All') params.status = statusFilter;
       
       const [clientsRes, statsRes] = await Promise.all([
-        axios.get(
-          'http://localhost:8000/api/clients', 
+        api.get(
+          '/api/clients', 
           { params, withCredentials: true }
         ),
-        axios.get(
-          'http://localhost:8000/api/clients/stats',
+        api.get(
+          '/api/clients/stats',
           { withCredentials: true }
         ),
       ]);
