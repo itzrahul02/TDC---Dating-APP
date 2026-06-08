@@ -39,9 +39,9 @@ router.get('/clients/stats', auth, async (req, res) => {
 
     res.json({ total, searching, introSent, matched });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server error' }); 
   }
-});
+}); 
 
 // Get single client by profileId
 router.get('/clients/:id', auth, async (req, res) => {
